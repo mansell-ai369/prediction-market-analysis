@@ -1,9 +1,12 @@
-.PHONY: analyze run index package lint format test setup
+.PHONY: analyze run index package lint format test setup trade-demo
 
 RUN = uv run main.py
 
 analyze:
 	$(RUN) analyze
+
+trade-demo:
+	uv run python -m src.trading.demo
 
 run:
 	$(RUN) analyze $(filter-out $@,$(MAKECMDGOALS))
