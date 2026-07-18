@@ -29,6 +29,25 @@ RESULT
   Kill switch     : not triggered
 ```
 
+## Monitoring dashboard
+
+A live web dashboard lets you watch the bot in real time (equity curve, P&L,
+cash, current tick, open positions, recent fills, kill-switch status) with
+Pause / Resume / Reset controls.
+
+```bash
+make dashboard
+# or:
+uv run python -m src.trading.dashboard.app --host 127.0.0.1 --port 8000 --interval 0.8
+```
+
+Then open <http://127.0.0.1:8000/>. The bot runs on a background thread and the
+page polls `/api/state` once per second. Endpoints: `GET /api/state`,
+`POST /api/pause`, `POST /api/resume`, `POST /api/reset`.
+
+Dashboard files live under `src/trading/dashboard/` (`runner.py` drives the bot
+on a timer; `app.py` is the Flask server; `page.py` is the self-contained UI).
+
 ## Architecture
 
 ```

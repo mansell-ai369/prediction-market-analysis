@@ -50,39 +50,48 @@ class TradingBot:
                 mark += pos.market_value(price)
         return cash + mark
 
+    def step_once(self, tick: int) -> tuple:
+        """Run exactly one loop iteration.
+
+        Returns ``(report, fills)``. When the kill switch trips, no orders are
+        placed and ``report.halted`` is True.
+        """
+        self.market_data.step()
+
+        equity = self._equity()
+        if self.risk.update_kill_switch(equity):
+            logger.warning("kill switch active at tick %d (equity %dc) - halting", tick, equity)
+            report = TickReport(tick, equity, self.client.get_balance(), len(self.client.get_positions()), 0, True)
+            return report, []
+
+        quotes = self.market_data.get_quotes()
+        targets = self.strategy.generate_targets(quotes, self.client.get_positions())
+        fills = self.execution.reconcile(targets)
+
+        equity = self._equity()
+        report = TickReport(
+            tick=tick,
+            equity=equity,
+            cash=self.client.get_balance(),
+            open_positions=len(self.client.get_positions()),
+            fills=len(fills),
+            halted=False,
+        )
+        return report, fills
+
     def run(self, ticks: int) -> list:
         """Run ``ticks`` iterations of the loop; returns a report per tick."""
         reports: list = []
 
         for tick in range(1, ticks + 1):
-            self.market_data.step()
-
-            equity = self._equity()
-            if self.risk.update_kill_switch(equity):
-                logger.warning("kill switch active at tick %d (equity %dc) - halting", tick, equity)
-                reports.append(
-                    TickReport(tick, equity, self.client.get_balance(), len(self.client.get_positions()), 0, True)
-                )
-                break
-
-            quotes = self.market_data.get_quotes()
-            targets = self.strategy.generate_targets(quotes, self.client.get_positions())
-            fills = self.execution.reconcile(targets)
-
-            equity = self._equity()
-            report = TickReport(
-                tick=tick,
-                equity=equity,
-                cash=self.client.get_balance(),
-                open_positions=len(self.client.get_positions()),
-                fills=len(fills),
-                halted=False,
-            )
+            report, _ = self.step_once(tick)
             reports.append(report)
+            if report.halted:
+                break
             logger.info(
                 "tick %02d | equity %6dc | cash %6dc | positions %d | fills %d",
-                tick,
-                equity,
+                report.tick,
+                report.equity,
                 report.cash,
                 report.open_positions,
                 report.fills,
